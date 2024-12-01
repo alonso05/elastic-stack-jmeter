@@ -1,0 +1,76 @@
+version: '3.8'
+
+networks:
+  jmeter_net:
+    name: jmeter_network
+    driver: bridge
+  elastic:
+    external: true
+    name: elastic_network
+
+services:
+  jmeter:
+    image: justb4/jmeter:5.5
+    user: root
+    volumes:
+      - ../test:/test:rw
+      - ../result:/result:rw
+      - ../log/jmeter:/jmeter/log:rw
+    environment:
+      - TZ=UTC
+      - JVM_ARGS=-Xms1g -Xmx1g -XX:MaxMetaspaceSize=256m
+    working_dir: /test
+    networks:
+      - jmeter_net
+    entrypoint: ["/opt/apache-jmeter-5.5/bin/jmeter"]
+    command: [
+      "-n",
+      "-t", "/test/todoist.jmx",
+      "-l", "/result/result.jtl",
+      "-e",
+      "-o", "/result/dashboard",
+      "-j", "/jmeter/log/jmeter.log",
+      "-Jjmeter.reportgenerator.overall_granularity=1000",
+      "-Jjmeter.save.saveservice.default_delimiter=,",
+      "-Jjmeter.save.saveservice.print_field_names=true",
+      "-Jjmeter.save.saveservice.timestamp_format=yyyy-MM-dd HH:mm:ss",
+      "-Jjmeter.save.saveservice.timestamp=true",
+      "-Jjmeter.save.saveservice.time=true",
+      "-Jjmeter.save.saveservice.latency=true",
+      "-Jjmeter.save.saveservice.label=true",
+      "-Jjmeter.save.saveservice.success=true",
+      "-Jjmeter.save.saveservice.response_code=true",
+      "-Jjmeter.save.saveservice.response_message=true",
+      "-Jjmeter.save.saveservice.thread_name=true",
+      "-Jjmeter.save.saveservice.thread_counts=true",
+      "-Jjmeter.save.saveservice.bytes=true",
+      "-Jjmeter.save.saveservice.url=true",
+      "-Jjmeter.save.saveservice.connect_time=true",
+      "-Jjmeter.save.saveservice.response_data=false",
+      "-Jjmeter.save.saveservice.samplerData=false",
+      "-Jjmeter.save.saveservice.subresults=false",
+      "-Jjmeter.save.saveservice.assertion_results_failure_message=false"
+    ]
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.11.3
+    user: root
+    volumes:
+      - ../filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ../log:/var/log/jmeter:ro
+      - ../result:/result:ro
+    networks:
+      - elastic
+    command: ["--strict.perms=false", "-e"]
+    depends_on:
+      - jmeter
+    deploy:
+      resources:
+        limits:
+          memory: 256M

@@ -1,0 +1,47 @@
+#=========================== Filebeat inputs =============================
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - /var/log/jmeter/*.log
+    - /result/*.jtl
+  json.keys_under_root: true
+  fields_under_root: true
+  fields:
+    type: jmeter
+
+setup.kibana:
+  host: "kibana:5601"
+
+setup.template.enabled: true
+setup.template.name: "jmeter-logs"
+setup.template.pattern: "jmeter-*"
+setup.dashboards.enabled: true
+setup.ilm.enabled: false
+
+output.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+  protocol: "http"
+  indices:
+    - index: "jmeter-%{+yyyy.MM.dd}"
+      when.contains:
+        type: "jmeter"
+
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_docker_metadata: ~
+  - decode_json_fields:
+      fields: ["message"]
+      target: "json"
+      when:
+        contains:
+          message: "{"
+
+logging.level: debug
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
